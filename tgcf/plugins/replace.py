@@ -21,47 +21,34 @@ class TgcfReplace(TgcfPlugin):
         msg_text: str = tm.text
         if not msg_text:
             return tm
-        for original, new in self.replace.text.items():
-            msg_text = replace(original, new, msg_text, self.replace.regex)
-
-        # Check for links in message text
-        links = self.find_links(msg_text)
-
+        links = re.findall("(?P<url>https?://[^\s]+)", msg_text)
         for link in links:
-            # Check final redirected link
-            final_link = self.get_final_link(link)
-            
-            # Check domain of the link
-            parsed_link = urlparse(final_link)
-            if parsed_link.netloc == "www.flipkart.com":
-                final_link += "?affid=flip"
-            elif parsed_link.netloc == "www.amazon.in":
-                final_link += "?affid=amaz"
-            
-            # Replace original link with modified link
-            msg_text = msg_text.replace(link, final_link)
-            
+            try:
+                # follow redirects to get the final URL
+                response = requests.head(link, allow_redirects=True)
+                final_url = response.url
+                
+                # parse the URL to get the domain and query parameters
+                parsed_url = urlparse(final_url)
+                domain = parsed_url.netloc
+                query_params = parse_qs(parsed_url.query)
+                
+                # add the affid tag if the domain is flipkart or amazon
+                if domain == "www.flipkart.com":
+                    query_params["affid"] = "saurabhpp1"
+                elif domain == "www.amazon.in":
+                    query_params["tag"] = "lootdealsfree-21"
+                
+                # construct the modified URL
+                modified_url = f"{parsed_url.scheme}://{domain}{parsed_url.path}"
+                if query_params:
+                    modified_url += "?" + "&".join([f"{key}={value[0]}" for key, value in query_params.items()])
+                
+                # replace the original link with the modified link in the message text
+                msg_text = msg_text.replace(link, modified_url)
+            except:
+                # if there's an error with the link, just move on to the next one
+                pass
+                
         tm.text = msg_text
         return tm
-    
-    def find_links(self, text: str) -> list:
-        """
-        Find all the links in the given text.
-        """
-        links = []
-        words = text.split()
-        for word in words:
-            if word.startswith("http"):
-                links.append(word)
-        return links
-    
-    def get_final_link(self, link: str) -> str:
-        """
-        Get the final redirected link of the given link.
-        """
-        try:
-            response = requests.get(link, allow_redirects=True)
-            final_link = response.url
-        except:
-            final_link = link
-        return final_link
