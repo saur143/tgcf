@@ -21,8 +21,8 @@ class TgcfReplace(TgcfPlugin):
         msg_text: str = tm.text
         if not msg_text:
             return tm
-        links = re.findall("(?P<url>https?://[^\s]+)", msg_text)
-        for link in links:
+        msg_text = re.findall("(?P<url>https?://[^\s]+)", msg_text)
+        for link in msg_text:
             try:
                 # follow redirects to get the final URL
                 response = requests.head(link, allow_redirects=True)
